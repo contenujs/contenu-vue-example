@@ -22,53 +22,61 @@ class Contenu {
       );
   }
   initializeIframe() {
-    var contenuIframe = document.createElement("iframe");
-    contenuIframe.setAttribute("id", "contenuWidget");
-    contenuIframe.setAttribute(
+    this.contenuIframe = document.createElement("iframe");
+    this.contenuIframe.setAttribute("id", "contenuWidget");
+    this.contenuIframe.setAttribute(
       "style",
       "position:fixed; border:0; max-width:87px;max-height:96px; width:100%; top: 50px; right:0;height:80%; overflow: hidden;"
     );
-    contenuIframe.setAttribute("src", this.serverUrl);
-    document.getElementsByTagName("body")[0].appendChild(contenuIframe);
+    this.contenuIframe.setAttribute("src", this.serverUrl);
+    document.getElementsByTagName("body")[0].appendChild(this.contenuIframe);
   }
   initializeMessageListener() {
-    function receiveMessage(event) {
-      // if (event.origin !== this.serverUrl) return;
+    window.addEventListener(
+      "message",
+      event => {
+        // if (event.origin !== this.serverUrl) return;
 
-      let obj = this.window.$contenu.data;
+        let obj = this.data;
 
-      switch (event.data.event) {
-        case "iframeResize":
-          if (event.data.value) {
-            // make iframe big
-            document.getElementById("contenuWidget").style.maxWidth = "300px";
+        switch (event.data.event) {
+          case "init":
+            this.contenuIframe.contentWindow.postMessage(
+              {
+                event: "init",
+                envMode: process.env.NODE_ENV
+              },
+              "*"
+            );
+            break;
+          case "iframeResize":
+            if (event.data.value) {
+              // make iframe big
+              document.getElementById("contenuWidget").style.maxWidth = "300px";
+              document.getElementById("contenuWidget").style.maxHeight =
+                "unset";
+            } else {
+              //make iframe small
+              setTimeout(() => {
+                document.getElementById("contenuWidget").style.maxWidth =
+                  "87px";
+                document.getElementById("contenuWidget").style.maxHeight =
+                  "96px";
+              }, 500);
+            }
 
-            document.getElementById("contenuWidget").style.maxHeight = "unset";
-          } else {
-            //make iframe small
-            setTimeout(() => {
-              document.getElementById("contenuWidget").style.maxWidth = "87px";
-              document.getElementById("contenuWidget").style.maxHeight = "96px";
-            }, 500);
-          }
-
-          break;
-        case "dataUpdate":
-          var stack = event.data.path.split(".");
-          while (stack.length > 1) {
-            obj = obj[stack.shift()];
-          }
-          obj[stack.shift()] = event.data.data;
-          break;
-      }
-
-      // event.source.postMessage(
-      //   "hi there yourself!  the secret response " + "is: rheeeeet!",
-      //   event.origin
-      // );
-    }
-
-    window.addEventListener("message", receiveMessage, false);
+            break;
+          case "dataUpdate":
+            var stack = event.data.path.split(".");
+            while (stack.length > 1) {
+              obj = obj[stack.shift()];
+            }
+            obj[stack.shift()] = event.data.data;
+            break;
+        }
+      },
+      false
+    );
   }
   setData(obj) {
     let res = {};
