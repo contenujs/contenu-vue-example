@@ -6,6 +6,6 @@ import Contenu from "./contenu";
 
 Vue.config.productionTip = false;
 Vue.use(Contenu, "http://localhost:4000");
-new Vue({
+window.app = new Vue({
   render: h => h(App)
 }).$mount("#app");

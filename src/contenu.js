@@ -3,6 +3,7 @@ import Vue from "vue";
 class Contenu {
   data = {};
   props = {};
+  loaded = false;
   constructor(serverUrl) {
     this.serverUrl = serverUrl;
     Vue.observable(this.data);
@@ -15,7 +16,8 @@ class Contenu {
     fetch(this.serverUrl + "/api/data")
       .then(response => response.json())
       .then(data => {
-        this.setData(data);
+        this.loaded = true;
+        this.setData(data, this.props);
       })
       .catch(error =>
         console.error("Contenu is unable to connect to server", error)
@@ -78,14 +80,16 @@ class Contenu {
       false
     );
   }
-  setData(obj) {
+  setData(obj, props) {
     let res = {};
     Vue.observable(res);
     for (let key in obj) {
       if (typeof obj[key] === "object") {
         // res[key] = this.setData(obj[key]);
         // if (this.data[key] !== "undefined") {
-        this.data[key] = this.setData(obj[key]);
+        props[key] = {};
+        this.data[key] = this.setData(obj[key], props[key]);
+        this.data[key]["__path"] = key;
         // } else {
         // this.data[key] = Vue.set(res, key, obj[key]);
         // }
@@ -100,17 +104,72 @@ class Contenu {
     this.props[prop] = {};
   }
 }
+let makeProxy = (data, props) => {
+  return new Proxy(data, {
+    get: (target, prop) => {
+      if (typeof props === "undefined") props = {};
+      if (typeof target.__path === "undefined") {
+        target.__path = "";
+      }
+      try {
+        if (
+          typeof props[prop] === "undefined" &&
+          typeof target[prop] == "object"
+        ) {
+          props[prop] = {};
+        }
+        return makeProxy(target[prop], props[prop]);
+      } catch (err) {
+        if (prop === "__value") {
+          if (typeof target.__value !== "undefined") return target.__value;
+          if (typeof target === "object" && Object.keys(target).length == 0)
+            return null;
+          return target;
+        }
+        if (typeof target[prop] === "string") {
+          Vue.set(target, prop, {
+            __value: target[prop],
+            __path: target.__path + "." + prop,
+            parse: () => {
+              return target[prop].__value;
+            }
+          });
+        } else {
+          if (typeof props[prop] === "undefined" && window.$contenu.loaded) {
+            console.log("new Prop", target.__path + "." + prop);
+            props[prop] = {};
+          }
+          Vue.set(target, prop, {
+            __value: "",
+            __path: target.__path + "." + prop,
+            parse: () => {
+              return target[prop].__value;
+            }
+          });
+        }
+        return makeProxy(target[prop], props[prop]);
+      }
+    }
+  });
+};
+
 export default {
   install(Vue, options) {
     window.$contenu = new Contenu(options);
-    Vue.prototype.$contenu = new Proxy(window.$contenu.data, {
-      get(target, prop) {
-        console.log(prop + " attempted");
-        if (typeof window.$contenu.data[prop] === "undefined") {
-          window.$contenu.addToProp(prop);
-        }
-        return window.$contenu.data[prop];
-      }
-    });
+
+    Vue.prototype.$contenu = makeProxy(
+      window.$contenu.data,
+      window.$contenu.props
+    );
+
+    // Vue.prototype.$contenu = new Proxy(window.$contenu.data, {
+    //   get(target, prop) {
+    //     console.log(prop);
+    //     if (typeof window.$contenu.data[prop] === "undefined") {
+    //       window.$contenu.addToProp(prop);
+    //     }
+    //     return window.$contenu.data[prop];
+    //   }
+    // });
   }
 };
