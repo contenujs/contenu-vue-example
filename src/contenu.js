@@ -4,6 +4,8 @@ class Contenu {
   data = {};
   props = {};
   loaded = false;
+  eventQueue = [];
+  init = false;
   constructor(serverUrl) {
     this.serverUrl = serverUrl;
     Vue.observable(this.data);
@@ -17,7 +19,8 @@ class Contenu {
       .then(response => response.json())
       .then(data => {
         this.loaded = true;
-        this.setData(data, this.props);
+        this.setData(data, this.props, this.data);
+        this.requestForNewFields(this.compare(this.props, this.data));
       })
       .catch(error =>
         console.error("Contenu is unable to connect to server", error)
@@ -40,68 +43,95 @@ class Contenu {
         // if (event.origin !== this.serverUrl) return;
 
         let obj = this.data;
-
-        switch (event.data.event) {
-          case "init":
-            this.contenuIframe.contentWindow.postMessage(
-              {
-                event: "init",
-                envMode: process.env.NODE_ENV
-              },
-              "*"
-            );
-            break;
-          case "iframeResize":
-            if (event.data.value) {
-              // make iframe big
-              document.getElementById("contenuWidget").style.maxWidth = "300px";
-              document.getElementById("contenuWidget").style.maxHeight =
-                "unset";
-            } else {
-              //make iframe small
-              setTimeout(() => {
+        if (event.data) {
+          switch (event.data.event) {
+            case "init":
+              this.init = true;
+              this.contenuIframe.contentWindow.postMessage(
+                {
+                  event: "init",
+                  envMode: process.env.NODE_ENV
+                },
+                "*"
+              );
+              break;
+            case "newFields":
+              this.requestForNewFields();
+              break;
+            case "iframeResize":
+              if (event.data.value) {
+                // make iframe big
                 document.getElementById("contenuWidget").style.maxWidth =
-                  "87px";
+                  "300px";
                 document.getElementById("contenuWidget").style.maxHeight =
-                  "96px";
-              }, 500);
-            }
+                  "unset";
+              } else {
+                //make iframe small
+                setTimeout(() => {
+                  document.getElementById("contenuWidget").style.maxWidth =
+                    "87px";
+                  document.getElementById("contenuWidget").style.maxHeight =
+                    "96px";
+                }, 500);
+              }
 
-            break;
-          case "dataUpdate":
-            var stack = event.data.path.split(".");
-            while (stack.length > 1) {
-              obj = obj[stack.shift()];
-            }
-            obj[stack.shift()] = event.data.data;
-            break;
+              break;
+            case "dataUpdate":
+              var stack = event.data.path.split(".");
+              while (stack.length > 1) {
+                obj = obj[stack.shift()];
+              }
+              obj[stack.shift()] = event.data.data;
+              break;
+          }
         }
       },
       false
     );
   }
-  setData(obj, props) {
-    let res = {};
-    Vue.observable(res);
+  setData(obj, props, res) {
     for (let key in obj) {
       if (typeof obj[key] === "object") {
-        // res[key] = this.setData(obj[key]);
-        // if (this.data[key] !== "undefined") {
         props[key] = {};
-        this.data[key] = this.setData(obj[key], props[key]);
-        this.data[key]["__path"] = key;
-        // } else {
-        // this.data[key] = Vue.set(res, key, obj[key]);
-        // }
+        res[key] = this.setData(obj[key], props[key], res[key]);
+        res[key]["__path"] = key;
       } else {
         Vue.set(res, key, obj[key]);
       }
     }
     return res;
   }
-  addToProp(prop) {
-    Vue.set(this.data, prop, {});
-    this.props[prop] = {};
+  compare(obj1, obj2) {
+    //console.log(obj1, obj2);
+    let unknownPaths = {};
+    for (let key in obj1) {
+      if (typeof obj2[key] === "undefined") {
+        unknownPaths[key] = obj1[key];
+      } else if (
+        typeof obj2[key] === "object" &&
+        typeof obj1[key] === "object"
+      ) {
+        let unknownInnerPaths = this.compare(obj1[key], obj2[key]);
+        if (Object.keys(unknownInnerPaths).length > 0)
+          unknownPaths[key] = unknownInnerPaths;
+      }
+    }
+    return unknownPaths;
+  }
+  requestForNewFields(objPath) {
+    if (this.init == false) {
+      this.eventQueue = {
+        event: "newField",
+        data: objPath
+      };
+    } else {
+      if (Object.keys(this.eventQueue).length > 0) {
+        this.contenuIframe.contentWindow.postMessage(this.eventQueue, "*");
+        this.eventQueue = {};
+      }
+      if (typeof objPath !== "undefined")
+        this.contenuIframe.contentWindow.postMessage(this.eventQueue, "*");
+    }
   }
 }
 let makeProxy = (data, props) => {
@@ -116,6 +146,7 @@ let makeProxy = (data, props) => {
           typeof props[prop] === "undefined" &&
           typeof target[prop] == "object"
         ) {
+          // console.log("new Prop", target.__path + "." + prop);
           props[prop] = {};
         }
         return makeProxy(target[prop], props[prop]);
@@ -135,8 +166,8 @@ let makeProxy = (data, props) => {
             }
           });
         } else {
-          if (typeof props[prop] === "undefined" && window.$contenu.loaded) {
-            console.log("new Prop", target.__path + "." + prop);
+          if (typeof props[prop] === "undefined") {
+            // console.log("new Prop", target.__path + "." + prop);
             props[prop] = {};
           }
           Vue.set(target, prop, {
@@ -161,15 +192,5 @@ export default {
       window.$contenu.data,
       window.$contenu.props
     );
-
-    // Vue.prototype.$contenu = new Proxy(window.$contenu.data, {
-    //   get(target, prop) {
-    //     console.log(prop);
-    //     if (typeof window.$contenu.data[prop] === "undefined") {
-    //       window.$contenu.addToProp(prop);
-    //     }
-    //     return window.$contenu.data[prop];
-    //   }
-    // });
   }
 };
