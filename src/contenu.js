@@ -1,108 +1,95 @@
 /* eslint-disable */
 import Vue from "vue";
-class Contenu {
-  data = {};
-  props = {};
-  loaded = false;
-  eventQueue = [];
+
+class EventHandler {
   init = false;
-  constructor(serverUrl) {
-    this.serverUrl = serverUrl;
-    Vue.observable(this.data);
-    this.fetchDataFromServer();
-    this.initializeIframe();
-    this.initializeMessageListener();
-    return this;
-  }
-  fetchDataFromServer() {
-    fetch(this.serverUrl + "/api/data")
-      .then(response => response.json())
-      .then(data => {
-        this.loaded = true;
-        this.setData(data, this.props, this.data);
-        this.requestForNewFields(this.compare(this.props, this.data));
-      })
-      .catch(error =>
-        console.error("Contenu is unable to connect to server", error)
-      );
-  }
-  initializeIframe() {
-    this.contenuIframe = document.createElement("iframe");
-    this.contenuIframe.setAttribute("id", "contenuWidget");
-    this.contenuIframe.setAttribute(
-      "style",
-      "position:fixed; border:0; max-width:87px;max-height:96px; width:100%; top: 50px; right:0;height:80%; overflow: hidden;"
-    );
-    this.contenuIframe.setAttribute("src", this.serverUrl);
-    document.getElementsByTagName("body")[0].appendChild(this.contenuIframe);
-  }
+  eventQueue = [];
   initializeMessageListener() {
     window.addEventListener(
       "message",
       event => {
-        // if (event.origin !== this.serverUrl) return;
-
-        let obj = this.data;
-        if (event.data) {
-          switch (event.data.event) {
-            case "init":
-              this.init = true;
-              this.contenuIframe.contentWindow.postMessage(
-                {
-                  event: "init",
-                  envMode: process.env.NODE_ENV
-                },
-                "*"
-              );
-              break;
-            case "newFields":
-              this.requestForNewFields();
-              break;
-            case "iframeResize":
-              if (event.data.value) {
-                // make iframe big
-                document.getElementById("contenuWidget").style.maxWidth =
-                  "300px";
-                document.getElementById("contenuWidget").style.maxHeight =
-                  "unset";
-              } else {
-                //make iframe small
-                setTimeout(() => {
-                  document.getElementById("contenuWidget").style.maxWidth =
-                    "87px";
-                  document.getElementById("contenuWidget").style.maxHeight =
-                    "96px";
-                }, 500);
-              }
-
-              break;
-            case "dataUpdate":
-              var stack = event.data.path.split(".");
-              while (stack.length > 1) {
-                obj = obj[stack.shift()];
-              }
-              obj[stack.shift()] = event.data.data;
-              break;
-          }
-        }
+        this.handler(event);
       },
       false
     );
   }
-  setData(obj, props, res) {
-    for (let key in obj) {
-      if (typeof obj[key] === "object") {
-        props[key] = {};
-        res[key] = this.setData(obj[key], props[key], res[key]);
-        res[key]["__path"] = key;
-      } else {
-        Vue.set(res, key, obj[key]);
+  sendMessage(data) {
+    IFrameInitializer.contenuIframe.contentWindow.postMessage(data, "*");
+  }
+  handler(event) {
+    if (event.data) {
+      switch (event.data.type) {
+        case "init":
+          this.init = true;
+          this.sendMessage({
+            type: "init",
+            envMode: process.env.NODE_ENV
+          });
+          break;
+        case "newFields":
+          this.requestNewFields();
+          break;
+        case "iframeResize":
+          if (event.data.value) {
+            // make iframe big
+            IFrameInitializer.contenuIframe.style.maxWidth = "300px";
+            IFrameInitializer.contenuIframe.style.maxHeight = "unset";
+          } else {
+            //make iframe small
+            setTimeout(() => {
+              IFrameInitializer.contenuIframe.style.maxWidth = "87px";
+              IFrameInitializer.contenuIframe.style.maxHeight = "96px";
+            }, 500);
+          }
+
+          break;
+        case "dataUpdate":
+          let obj = Contenu.data;
+          var stack = event.data.path.split(".");
+          while (stack.length > 1) {
+            obj = obj[stack.shift()];
+          }
+          obj[stack.shift()] = event.data.data;
+          break;
       }
     }
-    return res;
   }
-  compare(obj1, obj2) {
-    //console.log(obj1, obj2);
+  requestNewFields(objPath = null) {
+    if (typeof objPath !== null)
+      this.eventQueue.push({
+        type: "newField",
+        data: objPath
+      });
+    if (this.init) {
+      this.eventQueue = this.eventQueue.reverse();
+      for (let i in this.eventQueue) {
+        this.sendMessage(this.eventQueue[i]);
+      }
+      this.eventQueue = [];
+    }
+  }
+}
+class Parser {
+  static parse(obj1, props, result, parentKey = "") {
+    for (let key in obj1) {
+      if (typeof obj1[key] === "object") {
+        props[key] = {};
+        result[key]["__path"] = (parentKey.length ? parentKey + "." : "") + key;
+        result[key] = Parser.parse(
+          obj1[key],
+          props[key],
+          result[key],
+          result[key]["__path"]
+        );
+      } else {
+        Vue.set(result, key, obj1[key]);
+      }
+    }
+    console.log(result);
+    return result;
+  }
+
+  static compare(obj1, obj2) {
     let unknownPaths = {};
     for (let key in obj1) {
       if (typeof obj2[key] === "undefined") {
@@ -118,20 +105,64 @@ class Contenu {
     }
     return unknownPaths;
   }
-  requestForNewFields(objPath) {
-    if (this.init == false) {
-      this.eventQueue = {
-        event: "newField",
-        data: objPath
-      };
-    } else {
-      if (Object.keys(this.eventQueue).length > 0) {
-        this.contenuIframe.contentWindow.postMessage(this.eventQueue, "*");
-        this.eventQueue = {};
-      }
-      if (typeof objPath !== "undefined")
-        this.contenuIframe.contentWindow.postMessage(this.eventQueue, "*");
-    }
+}
+
+class IFrameInitializer {
+  static contenuIframe = null;
+  constructor(serverUrl) {
+    IFrameInitializer.contenuIframe = document.createElement("iframe");
+    IFrameInitializer.contenuIframe.setAttribute("id", "contenuWidget");
+    IFrameInitializer.contenuIframe.setAttribute(
+      "style",
+      [
+        "position:fixed",
+        "border:0",
+        "max-width:87px",
+        "max-height:96px",
+        "width:100%",
+        "top: 50px",
+        "right:0",
+        "height:80%",
+        "overflow: hidden"
+      ].join(";")
+    );
+    IFrameInitializer.contenuIframe.setAttribute("src", serverUrl);
+  }
+  mount(doc) {
+    doc.appendChild(IFrameInitializer.contenuIframe);
+  }
+}
+
+class Contenu {
+  static data = {};
+  props = {};
+  loaded = false;
+  iFrame = null;
+  handler = null;
+  constructor(serverUrl) {
+    this.serverUrl = serverUrl;
+    Vue.observable(Contenu.data);
+    this.handler = new EventHandler();
+    this.handler.initializeMessageListener();
+    this.fetchDataFromServer();
+    this.initIFrame();
+    return this;
+  }
+  initIFrame() {
+    this.iFrame = new IFrameInitializer(this.serverUrl);
+    this.iFrame.mount(document.getElementsByTagName("body")[0]);
+  }
+  fetchDataFromServer() {
+    fetch(this.serverUrl + "/api/data")
+      .then(response => response.json())
+      .then(res => {
+        Parser.parse(res, this.props, Contenu.data);
+        this.handler.requestNewFields(Parser.compare(this.props, Contenu.data));
+        this.loaded = true;
+      })
+      .catch(error =>
+        console.error("Contenu is unable to connect to server", error)
+      );
   }
 }
 let makeProxy = (data, props) => {
@@ -188,9 +219,7 @@ export default {
   install(Vue, options) {
     window.$contenu = new Contenu(options);
 
-    Vue.prototype.$contenu = makeProxy(
-      window.$contenu.data,
-      window.$contenu.props
-    );
+    Vue.prototype.$contenu = makeProxy(Contenu.data, window.$contenu.props);
+    console.log(Contenu.data);
   }
 };
