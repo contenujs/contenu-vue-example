@@ -25,21 +25,18 @@ class EventHandler {
             type: "init",
             envMode: process.env.NODE_ENV
           });
+          IFrameInitializer.contenuIframe.style.width = "100%";
           break;
         case "newFields":
           this.requestNewFields();
           break;
-        case "iframeResize":
+        case "cssRules":
           if (event.data.value) {
             // make iframe big
-            IFrameInitializer.contenuIframe.style.maxWidth = "300px";
-            IFrameInitializer.contenuIframe.style.maxHeight = "unset";
-          } else {
-            //make iframe small
-            setTimeout(() => {
-              IFrameInitializer.contenuIframe.style.maxWidth = "87px";
-              IFrameInitializer.contenuIframe.style.maxHeight = "96px";
-            }, 500);
+            for (let key in event.data.value) {
+              IFrameInitializer.contenuIframe.style[key] =
+                event.data.value[key];
+            }
           }
 
           break;
@@ -55,7 +52,7 @@ class EventHandler {
     }
   }
   requestNewFields(objPath = null) {
-    if (typeof objPath !== null)
+    if (objPath != null)
       this.eventQueue.push({
         type: "newField",
         data: objPath
@@ -74,6 +71,7 @@ class Parser {
     for (let key in obj1) {
       if (typeof obj1[key] === "object") {
         props[key] = {};
+        if (typeof result[key] == "undefined") result[key] = {};
         result[key]["__path"] = (parentKey.length ? parentKey + "." : "") + key;
         result[key] = Parser.parse(
           obj1[key],
@@ -85,7 +83,6 @@ class Parser {
         Vue.set(result, key, obj1[key]);
       }
     }
-    console.log(result);
     return result;
   }
 
@@ -98,11 +95,14 @@ class Parser {
         typeof obj2[key] === "object" &&
         typeof obj1[key] === "object"
       ) {
-        let unknownInnerPaths = this.compare(obj1[key], obj2[key]);
+        let unknownInnerPaths = Parser.compare(obj1[key], obj2[key]);
         if (Object.keys(unknownInnerPaths).length > 0)
           unknownPaths[key] = unknownInnerPaths;
+      } else {
+        unknownPaths[key] = obj1[key];
       }
     }
+
     return unknownPaths;
   }
 }
@@ -117,12 +117,8 @@ class IFrameInitializer {
       [
         "position:fixed",
         "border:0",
-        "max-width:87px",
-        "max-height:96px",
-        "width:100%",
-        "top: 50px",
-        "right:0",
-        "height:80%",
+        "width:0",
+        "height:0",
         "overflow: hidden"
       ].join(";")
     );
@@ -157,7 +153,11 @@ class Contenu {
       .then(response => response.json())
       .then(res => {
         Parser.parse(res, this.props, Contenu.data);
-        this.handler.requestNewFields(Parser.compare(this.props, Contenu.data));
+
+        setTimeout(() => {
+          this.handler.requestNewFields(Parser.compare(this.props, res));
+        }, 5000);
+
         this.loaded = true;
       })
       .catch(error =>
@@ -189,23 +189,25 @@ let makeProxy = (data, props) => {
           return target;
         }
         if (typeof target[prop] === "string") {
+          delete target.__value;
           Vue.set(target, prop, {
             __value: target[prop],
             __path: target.__path + "." + prop,
             parse: () => {
-              return target[prop].__value;
+              return target[prop].__value ? target[prop].__value : target[prop];
             }
           });
         } else {
           if (typeof props[prop] === "undefined") {
             // console.log("new Prop", target.__path + "." + prop);
             props[prop] = {};
+            delete target.__value;
           }
           Vue.set(target, prop, {
             __value: "",
             __path: target.__path + "." + prop,
             parse: () => {
-              return target[prop].__value;
+              return target[prop].__value ? target[prop].__value : target[prop];
             }
           });
         }
@@ -220,6 +222,5 @@ export default {
     window.$contenu = new Contenu(options);
 
     Vue.prototype.$contenu = makeProxy(Contenu.data, window.$contenu.props);
-    console.log(Contenu.data);
   }
 };
