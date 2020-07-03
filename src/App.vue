@@ -8,6 +8,7 @@
 		<p>{{ $contenu.header.Description.parse() }}</p>
 		<p>{{ $contenu.header.Description.x.u.parse() }}</p>
 		<p>{{ $contenu.soemfield.x.parse() }}</p>
+		<p>{{ $contenu.header.MetaData.heading.parse() }}</p>
 		<!-- <p>{{ $contenu.header.ehem.ohum }}</p> -->
 	</div>
 </template>
