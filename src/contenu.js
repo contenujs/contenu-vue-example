@@ -28,7 +28,9 @@ class EventHandler {
           IFrameInitializer.contenuIframe.style.width = "100%";
           break;
         case "newFields":
-          this.requestNewFields();
+          //this.requestNewFields();
+
+          this.requestNewFields(Parser.compare(Contenu.props, Contenu.res));
           break;
         case "cssRules":
           if (event.data.value) {
@@ -131,7 +133,8 @@ class IFrameInitializer {
 
 class Contenu {
   static data = {};
-  props = {};
+  static props = {};
+  static res = {};
   loaded = false;
   iFrame = null;
   handler = null;
@@ -152,11 +155,9 @@ class Contenu {
     fetch(this.serverUrl + "/api/data")
       .then(response => response.json())
       .then(res => {
-        Parser.parse(res, this.props, Contenu.data);
+        Parser.parse(res, Contenu.props, Contenu.data);
 
-        setTimeout(() => {
-          this.handler.requestNewFields(Parser.compare(this.props, res));
-        }, 5000);
+        Contenu.res = res;
 
         this.loaded = true;
       })
@@ -165,6 +166,28 @@ class Contenu {
       );
   }
 }
+let parse = data => {
+  let res = {};
+  for (let key in data) {
+    if (key !== "__value" && key !== "__path") {
+      if (typeof data[key] === "object") {
+        res[key] = parse(data[key]);
+      } else res[key] = data[key];
+    }
+    if (typeof res[key] === "object") {
+      if (
+        Object.keys(res[key]).length == 1 &&
+        typeof res.parse === "function"
+      ) {
+        res[key] = data[key].__value;
+      }
+    }
+  }
+  if (Object.keys(res).length == 0) {
+    res = "";
+  }
+  return res;
+};
 let makeProxy = (data, props) => {
   return new Proxy(data, {
     get: (target, prop) => {
@@ -194,7 +217,9 @@ let makeProxy = (data, props) => {
             __value: target[prop],
             __path: target.__path + "." + prop,
             parse: () => {
-              return target[prop].__value ? target[prop].__value : target[prop];
+              return target[prop].__value
+                ? target[prop].__value
+                : parse(target[prop]);
             }
           });
         } else {
@@ -207,7 +232,9 @@ let makeProxy = (data, props) => {
             __value: "",
             __path: target.__path + "." + prop,
             parse: () => {
-              return target[prop].__value ? target[prop].__value : target[prop];
+              return target[prop].__value
+                ? target[prop].__value
+                : parse(target[prop]);
             }
           });
         }
@@ -221,6 +248,6 @@ export default {
   install(Vue, options) {
     window.$contenu = new Contenu(options);
 
-    Vue.prototype.$contenu = makeProxy(Contenu.data, window.$contenu.props);
+    Vue.prototype.$contenu = makeProxy(Contenu.data, Contenu.props);
   }
 };
