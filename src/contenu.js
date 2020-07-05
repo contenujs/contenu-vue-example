@@ -219,6 +219,8 @@ let makeProxy = (data, props) => {
             parse: () => {
               return target[prop].__value
                 ? target[prop].__value
+                : Object.keys(parse(target[prop])).length == 1
+                ? ""
                 : parse(target[prop]);
             }
           });
@@ -234,6 +236,8 @@ let makeProxy = (data, props) => {
             parse: () => {
               return target[prop].__value
                 ? target[prop].__value
+                : Object.keys(parse(target[prop])).length == 1
+                ? ""
                 : parse(target[prop]);
             }
           });
