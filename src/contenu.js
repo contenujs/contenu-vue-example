@@ -138,12 +138,12 @@ class Contenu {
   loaded = false;
   iFrame = null;
   handler = null;
-  constructor(serverUrl) {
-    this.serverUrl = serverUrl;
+  constructor(options) {
+    this.serverUrl = options.serverAddress;
     Vue.observable(Contenu.data);
     this.handler = new EventHandler();
     this.handler.initializeMessageListener();
-    this.fetchDataFromServer();
+    this.fetchDataFromServer(options.fetchDataAddress || "/api/data");
     this.initIFrame();
     return this;
   }
@@ -151,14 +151,12 @@ class Contenu {
     this.iFrame = new IFrameInitializer(this.serverUrl);
     this.iFrame.mount(document.getElementsByTagName("body")[0]);
   }
-  fetchDataFromServer() {
-    fetch(this.serverUrl + "/api/data")
+  fetchDataFromServer(fetchDataAddress) {
+    fetch(this.serverUrl + fetchDataAddress)
       .then(response => response.json())
       .then(res => {
         Parser.parse(res, Contenu.props, Contenu.data);
-
         Contenu.res = res;
-
         this.loaded = true;
       })
       .catch(error =>
@@ -250,6 +248,7 @@ let makeProxy = (data, props) => {
 
 export default {
   install(Vue, options) {
+
     window.$contenu = new Contenu(options);
 
     Vue.prototype.$contenu = makeProxy(Contenu.data, Contenu.props);
