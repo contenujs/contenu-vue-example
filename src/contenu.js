@@ -1,5 +1,4 @@
 /* eslint-disable */
-import Vue from "vue";
 
 class EventHandler {
   init = false;
@@ -28,8 +27,6 @@ class EventHandler {
           IFrameInitializer.contenuIframe.style.width = "100%";
           break;
         case "newFields":
-          //this.requestNewFields();
-
           this.requestNewFields(Parser.compare(Contenu.props, Contenu.res));
           break;
         case "cssRules":
@@ -82,7 +79,7 @@ class Parser {
           result[key]["__path"]
         );
       } else {
-        Vue.set(result, key, obj1[key]);
+        set(result, key, obj1[key]);
       }
     }
     return result;
@@ -140,7 +137,7 @@ class Contenu {
   handler = null;
   constructor(options) {
     this.serverUrl = options.serverAddress;
-    Vue.observable(Contenu.data);
+    observable(Contenu.data);
     this.handler = new EventHandler();
     this.handler.initializeMessageListener();
     this.fetchDataFromServer(options.fetchDataAddress || "/api/data");
@@ -152,11 +149,11 @@ class Contenu {
     this.iFrame.mount(document.getElementsByTagName("body")[0]);
   }
   fetchDataFromServer(fetchDataAddress) {
-    fetch(this.serverUrl + fetchDataAddress)
+    fetch(this.serverUrl + fetchDataAddress + "?key=/")
       .then(response => response.json())
       .then(res => {
-        Parser.parse(res, Contenu.props, Contenu.data);
-        Contenu.res = res;
+        Parser.parse(res.content, Contenu.props, Contenu.data);
+        Contenu.res = res.content;
         this.loaded = true;
       })
       .catch(error =>
@@ -211,7 +208,7 @@ let makeProxy = (data, props) => {
         }
         if (typeof target[prop] === "string") {
           delete target.__value;
-          Vue.set(target, prop, {
+          set(target, prop, {
             __value: target[prop],
             __path: target.__path + "." + prop,
             parse: () => {
@@ -228,7 +225,7 @@ let makeProxy = (data, props) => {
             props[prop] = {};
             delete target.__value;
           }
-          Vue.set(target, prop, {
+          set(target, prop, {
             __value: "",
             __path: target.__path + "." + prop,
             parse: () => {
@@ -245,12 +242,13 @@ let makeProxy = (data, props) => {
     }
   });
 };
-
+var set;
+var observable;
 export default {
   install(Vue, options) {
-
+    set = Vue.set;
+    observable = Vue.observable;
     window.$contenu = new Contenu(options);
-
     Vue.prototype.$contenu = makeProxy(Contenu.data, Contenu.props);
   }
 };

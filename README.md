@@ -1,4 +1,4 @@
-# vue-contenu
+# contenu-vue-example
 
 ## Project setup
 

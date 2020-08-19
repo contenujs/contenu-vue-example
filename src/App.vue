@@ -1,15 +1,26 @@
 <template>
-	<div id="app">
-		<img
-			alt="Vue logo"
-			src="./assets/logo.png"
-		/>
-		<p>{{ $contenu.header.heading.parse() }}</p>
-		<p>{{ $contenu.header.Description.parse() }}</p>
-		<p>{{ $contenu.header.Description.x.u.parse() }}</p>
-		<p>{{ $contenu.soemfield.x.parse() }}</p>
-		<p>{{ $contenu.header.MetaData.heading.parse() }}</p>
-		<!-- <p>{{ $contenu.header.ehem.ohum }}</p> -->
+	<div>
+		<section
+			class="rad-showcase rad-showcase--index rad-animation-group rad-fade-down rad-waiting rad-animate"
+			style="animation-delay: 0.1s;"
+		>
+			<div class="container">
+				<div class="row">
+					<div class="col-12 col-sm-12 col-md-12 col-lg-12 col-xl-12">
+						<h1 class="display-1">
+							{{$contenu.header.name.parse()}}
+							<br />
+							<span>{{$contenu.header.job.parse()}}</span>
+						</h1>
+						<p class="lead">{{$contenu.header.description.parse()}}</p>
+						<a
+							:href="$contenu.header.buttonLink.parse()"
+							class="btn btn-primary"
+						>{{$contenu.header.buttonName.parse()}}</a>
+					</div>
+				</div>
+			</div>
+		</section>
 	</div>
 </template>
 
