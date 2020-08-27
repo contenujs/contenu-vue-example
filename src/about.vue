@@ -1,5 +1,7 @@
 <template>
-	<router-view></router-view>
+	<div>
+		<p>{{$contenu.text.parse()}}</p>
+	</div>
 </template>
 
 <script>
