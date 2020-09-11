@@ -1,6 +1,6 @@
 <template>
 	<div>
-		<p>{{$contenu.text.parse()}}</p>
+		<p>{{$contenu("text")}}</p>
 	</div>
 </template>
 

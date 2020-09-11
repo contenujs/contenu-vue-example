@@ -8,16 +8,20 @@
 				<div class="row">
 					<div class="col-12 col-sm-12 col-md-12 col-lg-12 col-xl-12">
 						<h1 class="display-1">
-							{{$contenu.header.name.parse()}}
+							{{$contenu("header.name")}}
 							<br />
-							<span>{{$contenu.header.job.parse()}}</span>
+							<span>{{$contenu("header.job")}}</span>
 						</h1>
-						<p class="lead">{{$contenu.header.description.parse()}}</p>
+						<p class="lead">{{$contenu("header.description")}}</p>
 						<a
-							:href="$contenu.header.buttonLink.parse()"
+							:href="$contenu('header.buttonLink')"
 							class="btn btn-primary"
-						>{{$contenu.header.buttonName.parse()}}</a>
+						>{{$contenu("header.buttonName")}}</a>
 					</div>
+					<img
+						:src="$contenu('header.img')"
+						alt
+					/>
 					<router-link to="/about">Go To About Page</router-link>
 				</div>
 			</div>
@@ -28,6 +32,6 @@
 <script>
 /* eslint-disable */
 export default {
-	name: "App"
+	name: "App",
 };
 </script>
