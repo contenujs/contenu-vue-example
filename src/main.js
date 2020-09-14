@@ -8,8 +8,8 @@ Vue.config.productionTip = false;
 Vue.use(VueRouter);
 
 const routes = [
-  { path: "/", component: require("./index.vue").default },
-  { path: "/about", component: require("./about.vue").default }
+  { path: "/", component: require("./pages/home.vue").default },
+  { path: "/about", component: require("./pages/about.vue").default }
 ];
 
 const router = new VueRouter({
